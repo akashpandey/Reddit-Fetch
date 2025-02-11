@@ -20,8 +20,8 @@ This script allows users to **fetch their saved Reddit posts and comments** usin
 First, clone this repository to your local or headless server environment:
 
 ```bash
-git clone https://github.com/jayjay3108/Reddit-Fetch.git
-cd reddit-fetcher
+git clone https://github.com/akashpandey/Reddit-Fetch.git
+cd Reddit-Fetcher
 ```
 
 ### **2️⃣ Prerequisites**
