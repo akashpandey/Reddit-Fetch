@@ -12,6 +12,50 @@ Automatically fetch and export your saved Reddit posts and comments to JSON or H
 * **Smart Authentication** - Handles token refresh automatically
 * **Credential Validator** - Built-in tool to diagnose authentication issues
 
+## File Location Summary
+
+Understanding where to place `.env` and `tokens.json` for each method:
+
+### Method 1: CLI Script
+```
+your-project/               # Git clone directory
+├── .env                   # Create here
+├── tokens.json            # Generated here
+├── saved_posts.json       # Output here
+└── reddit_fetch/          # Source code
+```
+
+### Method 2: Build Your Own Image
+```
+# Source directory (for building)
+Reddit-Fetch/
+├── .env                   # Create here for auth generation
+├── tokens.json            # Generated here
+└── Dockerfile             # Build from here
+
+# Deployment directory (for running)
+reddit-fetcher-deploy/
+├── docker-compose.yml
+├── .env                   # Copy from source directory
+└── data/
+    └── tokens.json        # Copy from source directory
+```
+
+### Method 3: Pre-built Image
+```
+# Source directory (any computer with browser)
+temp-auth-setup/
+├── .env                   # Create here for auth generation
+└── tokens.json            # Generated here
+
+# Deployment directory (VPS/server)
+reddit-fetcher-docker/
+├── docker-compose.yml
+├── .env                   # Copy from source directory
+└── data/
+    └── tokens.json        # Copy from source directory
+```
+
 ---
 
 ## Prerequisites
