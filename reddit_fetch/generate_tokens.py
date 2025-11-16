@@ -12,11 +12,11 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
-# Reddit API Credentials
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI")  # Must match the one registered in Reddit App
-USER_AGENT = os.getenv("USER_AGENT")  # Fetch dynamically
+# Reddit API Credentials - strip whitespace to avoid common issues
+CLIENT_ID = os.getenv("CLIENT_ID", "").strip()
+CLIENT_SECRET = os.getenv("CLIENT_SECRET", "").strip()
+REDIRECT_URI = os.getenv("REDIRECT_URI", "").strip()  # Must match the one registered in Reddit App
+USER_AGENT = os.getenv("USER_AGENT", "").strip()  # Fetch dynamically
 TOKEN_FILE = "tokens.json"
 
 # Global variable to store auth code
@@ -96,16 +96,33 @@ def get_tokens():
 
     if response.status_code == 200:
         tokens = response.json()
-        
+
         # Save only the refresh token (no timestamp needed)
         token_data = {"refresh_token": tokens["refresh_token"]}
 
         with open(TOKEN_FILE, "w", encoding="utf-8") as file:
             json.dump(token_data, file)
-        
+
         print("✅ Refresh token saved in tokens.json")
     else:
-        print(f"❌ Error: {response.status_code} - {response.text}")
+        error_detail = ""
+        try:
+            error_json = response.json()
+            error_detail = f"\nError: {error_json.get('error', 'Unknown')}"
+            if 'message' in error_json:
+                error_detail += f"\nMessage: {error_json['message']}"
+        except:
+            error_detail = f"\nResponse: {response.text}"
+
+        print(f"❌ Authentication failed: {response.status_code}{error_detail}")
+
+        if response.status_code == 401:
+            print("\n⚠️  Common causes of 401 Unauthorized:")
+            print("1. CLIENT_ID is incorrect (should be the ID under your app name)")
+            print("2. CLIENT_SECRET is incorrect")
+            print("3. Credentials have leading/trailing whitespace")
+            print("4. REDIRECT_URI doesn't match your Reddit app settings exactly")
+            print("\n💡 Run 'python validate_credentials.py' to test your credentials")
 
 if __name__ == "__main__":
     get_tokens()

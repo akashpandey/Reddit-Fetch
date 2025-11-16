@@ -211,7 +211,22 @@ def refresh_access_token_safe():
             else:
                 console.print("❌ [bold red]Invalid access token received from Reddit.[/bold red]")
         else:
-            console.print(f"❌ [bold red]Failed to refresh access token: {response.status_code} - {response.text}[/bold red]")
+            error_detail = ""
+            try:
+                error_json = response.json()
+                error_detail = f"\nError: {error_json.get('error', 'Unknown')}"
+                if 'message' in error_json:
+                    error_detail += f"\nMessage: {error_json['message']}"
+            except:
+                error_detail = f"\nResponse: {response.text}"
+
+            console.print(f"❌ [bold red]Failed to refresh access token: {response.status_code}{error_detail}[/bold red]")
+
+            if response.status_code == 401:
+                console.print("[yellow]Possible causes:[/yellow]")
+                console.print("1. CLIENT_ID or CLIENT_SECRET changed or incorrect")
+                console.print("2. Refresh token expired or revoked")
+                console.print("3. Credentials have whitespace issues")
     
     except requests.exceptions.RequestException as e:
         console.print(f"❌ [bold red]Network error while refreshing token: {e}[/bold red]")
@@ -227,6 +242,43 @@ def refresh_access_token_safe():
         console.print("🔄 [yellow]Token refresh failed, attempting to get new tokens...[/yellow]")
         return get_new_tokens()
 
+def validate_credentials():
+    """Validates Reddit API credentials format."""
+    issues = []
+
+    if not CLIENT_ID:
+        issues.append("CLIENT_ID is missing")
+    elif len(CLIENT_ID) < 10:
+        issues.append(f"CLIENT_ID seems too short ({len(CLIENT_ID)} chars, expected 14-22)")
+    elif " " in CLIENT_ID:
+        issues.append("CLIENT_ID contains spaces (this will cause authentication to fail)")
+
+    if not CLIENT_SECRET:
+        issues.append("CLIENT_SECRET is missing")
+    elif len(CLIENT_SECRET) < 10:
+        issues.append(f"CLIENT_SECRET seems too short ({len(CLIENT_SECRET)} chars)")
+    elif " " in CLIENT_SECRET:
+        issues.append("CLIENT_SECRET contains spaces (this will cause authentication to fail)")
+
+    if not REDIRECT_URI:
+        issues.append("REDIRECT_URI is missing")
+    elif not REDIRECT_URI.startswith(("http://", "https://")):
+        issues.append(f"REDIRECT_URI must start with http:// or https:// (got: {REDIRECT_URI})")
+
+    if not USER_AGENT:
+        issues.append("USER_AGENT is missing")
+    elif len(USER_AGENT) < 5:
+        issues.append("USER_AGENT seems too short")
+
+    if issues:
+        console.print("❌ [bold red]Credential validation failed:[/bold red]")
+        for issue in issues:
+            console.print(f"   • {issue}")
+        console.print("\n[cyan]Run 'python validate_credentials.py' for detailed diagnostics[/cyan]")
+        return False
+
+    return True
+
 def get_new_tokens():
     """Requests new authentication tokens via OAuth."""
     # Check if we're in a headless environment first
@@ -234,12 +286,11 @@ def get_new_tokens():
         console.print("❌ [bold red]Cannot authenticate in headless environment.[/bold red]")
         show_headless_instructions()
         return None
-    
+
     global auth_code
-    
-    # Validate environment variables
-    if not CLIENT_ID or not CLIENT_SECRET:
-        console.print("❌ [bold red]Missing CLIENT_ID or CLIENT_SECRET in environment variables.[/bold red]")
+
+    # Validate credentials format
+    if not validate_credentials():
         return None
     
     try:
@@ -293,7 +344,25 @@ def get_new_tokens():
             console.print("✅ [bold green]Authentication successful! Tokens saved.[/bold green]")
             return tokens["access_token"]
         else:
-            console.print(f"❌ [bold red]Authentication failed: {response.status_code} - {response.text}[/bold red]")
+            error_detail = ""
+            try:
+                error_json = response.json()
+                error_detail = f"\nError: {error_json.get('error', 'Unknown')}"
+                if 'message' in error_json:
+                    error_detail += f"\nMessage: {error_json['message']}"
+            except:
+                error_detail = f"\nResponse: {response.text}"
+
+            console.print(f"❌ [bold red]Authentication failed: {response.status_code}{error_detail}[/bold red]")
+
+            if response.status_code == 401:
+                console.print("\n[yellow]Common causes of 401 Unauthorized:[/yellow]")
+                console.print("1. CLIENT_ID is incorrect (check it matches your Reddit app)")
+                console.print("2. CLIENT_SECRET is incorrect")
+                console.print("3. Credentials have leading/trailing whitespace")
+                console.print("4. REDIRECT_URI doesn't match your Reddit app settings exactly")
+                console.print("\n[cyan]Run 'python validate_credentials.py' to test your credentials[/cyan]")
+
             return None
             
     except Exception as e:
