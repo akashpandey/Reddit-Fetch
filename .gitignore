@@ -8,3 +8,6 @@ venv/
 test.py
 docker-compose.yml
 .env
+
+# Graphify generated scratch files
+graphify-out/cache/
