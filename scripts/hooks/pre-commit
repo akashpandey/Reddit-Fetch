@@ -1,0 +1,30 @@
+#!/bin/sh
+set -e
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$repo_root" ]; then
+  exit 0
+fi
+
+changed_code=$(
+  git diff --cached --name-only |
+    grep -E '^(reddit_fetch|tests|scripts|docs|setup.py|requirements.*|Dockerfile|AGENTS.md|CLAUDE.md|\.claude/)' ||
+    true
+)
+
+if [ -z "$changed_code" ]; then
+  exit 0
+fi
+
+if ! command -v graphify >/dev/null 2>&1; then
+  echo "[graphify] graphify command not found; skipping graph update"
+  exit 0
+fi
+
+echo "[graphify] Updating graph before commit"
+cd "$repo_root"
+graphify update .
+
+for graph_file in graphify-out/GRAPH_REPORT.md graphify-out/graph.json graphify-out/graph.html; do
+  [ -f "$graph_file" ] && git add -f "$graph_file"
+done

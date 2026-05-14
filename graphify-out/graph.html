@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>graphify - graphify-out/graph.html</title>
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { background: #0f0f1a; color: #e0e0e0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; display: flex; height: 100vh; overflow: hidden; }
+  #graph { flex: 1; }
+  #sidebar { width: 280px; background: #1a1a2e; border-left: 1px solid #2a2a4e; display: flex; flex-direction: column; overflow: hidden; }
+  #search-wrap { padding: 12px; border-bottom: 1px solid #2a2a4e; }
+  #search { width: 100%; background: #0f0f1a; border: 1px solid #3a3a5e; color: #e0e0e0; padding: 7px 10px; border-radius: 6px; font-size: 13px; outline: none; }
+  #search:focus { border-color: #4E79A7; }
+  #search-results { max-height: 140px; overflow-y: auto; padding: 4px 12px; border-bottom: 1px solid #2a2a4e; display: none; }
+  .search-item { padding: 4px 6px; cursor: pointer; border-radius: 4px; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .search-item:hover { background: #2a2a4e; }
+  #info-panel { padding: 14px; border-bottom: 1px solid #2a2a4e; min-height: 140px; }
+  #info-panel h3 { font-size: 13px; color: #aaa; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+  #info-content { font-size: 13px; color: #ccc; line-height: 1.6; }
+  #info-content .field { margin-bottom: 5px; }
+  #info-content .field b { color: #e0e0e0; }
+  #info-content .empty { color: #555; font-style: italic; }
+  .neighbor-link { display: block; padding: 2px 6px; margin: 2px 0; border-radius: 3px; cursor: pointer; font-size: 12px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; border-left: 3px solid #333; }
+  .neighbor-link:hover { background: #2a2a4e; }
+  #neighbors-list { max-height: 160px; overflow-y: auto; margin-top: 4px; }
+  #legend-wrap { flex: 1; overflow-y: auto; padding: 12px; }
+  #legend-wrap h3 { font-size: 13px; color: #aaa; margin-bottom: 10px; text-transform: uppercase; letter-spacing: 0.05em; }
+  .legend-item { display: flex; align-items: center; gap: 8px; padding: 4px 0; cursor: pointer; border-radius: 4px; font-size: 12px; }
+  .legend-item:hover { background: #2a2a4e; padding-left: 4px; }
+  .legend-item.dimmed { opacity: 0.35; }
+  .legend-dot { width: 12px; height: 12px; border-radius: 50%; flex-shrink: 0; }
+  .legend-label { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .legend-count { color: #666; font-size: 11px; }
+  #stats { padding: 10px 14px; border-top: 1px solid #2a2a4e; font-size: 11px; color: #555; }
+</style>
+</head>
+<body>
+<div id="graph"></div>
+<div id="sidebar">
+  <div id="search-wrap">
+    <input id="search" type="text" placeholder="Search nodes..." autocomplete="off">
+    <div id="search-results"></div>
+  </div>
+  <div id="info-panel">
+    <h3>Node Info</h3>
+    <div id="info-content"><span class="empty">Click a node to inspect it</span></div>
+  </div>
+  <div id="legend-wrap">
+    <h3>Communities</h3>
+    <div id="legend"></div>
+  </div>
+  <div id="stats">47 nodes &middot; 71 edges &middot; 11 communities</div>
+</div>
+<script>
+const RAW_NODES = [{"id": "setup_py", "label": "setup.py", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 10.0, "font": {"size": 0, "color": "#ffffff"}, "title": "setup.py", "community": 10, "community_name": "Community 10", "source_file": "setup.py", "file_type": "code", "degree": 0}, {"id": "reddit_fetch_auth_py", "label": "auth.py", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 40.0, "font": {"size": 12, "color": "#ffffff"}, "title": "auth.py", "community": 6, "community_name": "Community 6", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 10}, {"id": "auth_is_headless", "label": "is_headless()", "color": {"background": "#9C755F", "border": "#9C755F", "highlight": {"background": "#ffffff", "border": "#9C755F"}}, "size": 28.0, "font": {"size": 12, "color": "#ffffff"}, "title": "is_headless()", "community": 8, "community_name": "Community 8", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 6}, {"id": "auth_is_docker", "label": "is_docker()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 25.0, "font": {"size": 12, "color": "#ffffff"}, "title": "is_docker()", "community": 2, "community_name": "Community 2", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 5}, {"id": "auth_show_headless_instructions", "label": "show_headless_instructions()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 31.0, "font": {"size": 12, "color": "#ffffff"}, "title": "show_headless_instructions()", "community": 2, "community_name": "Community 2", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 7}, {"id": "auth_load_tokens_safe", "label": "load_tokens_safe()", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 25.0, "font": {"size": 12, "color": "#ffffff"}, "title": "load_tokens_safe()", "community": 4, "community_name": "Community 4", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 5}, {"id": "auth_save_tokens", "label": "save_tokens()", "color": {"background": "#BAB0AC", "border": "#BAB0AC", "highlight": {"background": "#ffffff", "border": "#BAB0AC"}}, "size": 22.0, "font": {"size": 12, "color": "#ffffff"}, "title": "save_tokens()", "community": 9, "community_name": "Community 9", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 4}, {"id": "auth_refresh_access_token_safe", "label": "refresh_access_token_safe()", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 37.0, "font": {"size": 12, "color": "#ffffff"}, "title": "refresh_access_token_safe()", "community": 4, "community_name": "Community 4", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 9}, {"id": "auth_validate_credentials", "label": "validate_credentials()", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 19.0, "font": {"size": 12, "color": "#ffffff"}, "title": "validate_credentials()", "community": 3, "community_name": "Community 3", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 3}, {"id": "auth_get_new_tokens", "label": "get_new_tokens()", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 31.0, "font": {"size": 12, "color": "#ffffff"}, "title": "get_new_tokens()", "community": 3, "community_name": "Community 3", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 7}, {"id": "auth_authhandler", "label": "AuthHandler", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 22.0, "font": {"size": 12, "color": "#ffffff"}, "title": "AuthHandler", "community": 5, "community_name": "Community 5", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 4}, {"id": "basehttprequesthandler", "label": "BaseHTTPRequestHandler", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "BaseHTTPRequestHandler", "community": 5, "community_name": "Community 5", "source_file": "", "file_type": "code", "degree": 1}, {"id": "auth_authhandler_do_get", "label": ".do_GET()", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": ".do_GET()", "community": 5, "community_name": "Community 5", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 1}, {"id": "auth_authhandler_log_message", "label": ".log_message()", "color": {"background": "#EDC948", "border": "#EDC948", "highlight": {"background": "#ffffff", "border": "#EDC948"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": ".log_message()", "community": 5, "community_name": "Community 5", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 1}, {"id": "auth_start_auth_server", "label": "start_auth_server()", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 16.0, "font": {"size": 12, "color": "#ffffff"}, "title": "start_auth_server()", "community": 6, "community_name": "Community 6", "source_file": "reddit_fetch/auth.py", "file_type": "code", "degree": 2}, {"id": "auth_rationale_22", "label": "Detects if the system is running in headless mode.", "color": {"background": "#9C755F", "border": "#9C755F", "highlight": {"background": "#ffffff", "border": "#9C755F"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Detects if the system is running in headless mode.", "community": 8, "community_name": "Community 8", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "auth_rationale_76", "label": "Detects if running inside Docker container.", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Detects if running inside Docker container.", "community": 2, "community_name": "Community 2", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "auth_rationale_84", "label": "Shows instructions for headless authentication.", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Shows instructions for headless authentication.", "community": 2, "community_name": "Community 2", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "auth_rationale_138", "label": "Handles token loading safely, ensuring better error handling in headless mode.", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Handles token loading safely, ensuring better error handling in headless mode.", "community": 4, "community_name": "Community 4", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "auth_rationale_156", "label": "Safely saves tokens to `tokens.json`.", "color": {"background": "#BAB0AC", "border": "#BAB0AC", "highlight": {"background": "#ffffff", "border": "#BAB0AC"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Safely saves tokens to `tokens.json`.", "community": 9, "community_name": "Community 9", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "auth_rationale_165", "label": "Refreshes the access token and handles headless system failures.", "color": {"background": "#59A14F", "border": "#59A14F", "highlight": {"background": "#ffffff", "border": "#59A14F"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Refreshes the access token and handles headless system failures.", "community": 4, "community_name": "Community 4", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "auth_rationale_246", "label": "Validates Reddit API credentials format.", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Validates Reddit API credentials format.", "community": 3, "community_name": "Community 3", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "auth_rationale_283", "label": "Requests new authentication tokens via OAuth.", "color": {"background": "#76B7B2", "border": "#76B7B2", "highlight": {"background": "#ffffff", "border": "#76B7B2"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Requests new authentication tokens via OAuth.", "community": 3, "community_name": "Community 3", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "auth_rationale_392", "label": "Start a temporary local web server to receive the OAuth callback.", "color": {"background": "#B07AA1", "border": "#B07AA1", "highlight": {"background": "#ffffff", "border": "#B07AA1"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Start a temporary local web server to receive the OAuth callback.", "community": 6, "community_name": "Community 6", "source_file": "reddit_fetch/auth.py", "file_type": "rationale", "degree": 1}, {"id": "reddit_fetch_config_py", "label": "config.py", "color": {"background": "#FF9DA7", "border": "#FF9DA7", "highlight": {"background": "#ffffff", "border": "#FF9DA7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "config.py", "community": 7, "community_name": "Community 7", "source_file": "reddit_fetch/config.py", "file_type": "code", "degree": 1}, {"id": "config_exponential_backoff", "label": "exponential_backoff()", "color": {"background": "#FF9DA7", "border": "#FF9DA7", "highlight": {"background": "#ffffff", "border": "#FF9DA7"}}, "size": 19.0, "font": {"size": 12, "color": "#ffffff"}, "title": "exponential_backoff()", "community": 7, "community_name": "Community 7", "source_file": "reddit_fetch/config.py", "file_type": "code", "degree": 3}, {"id": "config_rationale_17", "label": "Implements exponential backoff to avoid rate limiting.", "color": {"background": "#FF9DA7", "border": "#FF9DA7", "highlight": {"background": "#ffffff", "border": "#FF9DA7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Implements exponential backoff to avoid rate limiting.", "community": 7, "community_name": "Community 7", "source_file": "reddit_fetch/config.py", "file_type": "rationale", "degree": 1}, {"id": "reddit_fetch_init_py", "label": "__init__.py", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "__init__.py", "community": 1, "community_name": "Community 1", "source_file": "reddit_fetch/__init__.py", "file_type": "code", "degree": 1}, {"id": "reddit_fetch_main_py", "label": "main.py", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 25.0, "font": {"size": 12, "color": "#ffffff"}, "title": "main.py", "community": 1, "community_name": "Community 1", "source_file": "reddit_fetch/main.py", "file_type": "code", "degree": 5}, {"id": "main_is_interactive", "label": "is_interactive()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 19.0, "font": {"size": 12, "color": "#ffffff"}, "title": "is_interactive()", "community": 1, "community_name": "Community 1", "source_file": "reddit_fetch/main.py", "file_type": "code", "degree": 3}, {"id": "main_check_authentication", "label": "check_authentication()", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 31.0, "font": {"size": 12, "color": "#ffffff"}, "title": "check_authentication()", "community": 2, "community_name": "Community 2", "source_file": "reddit_fetch/main.py", "file_type": "code", "degree": 7}, {"id": "main_cli_entry", "label": "cli_entry()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 34.0, "font": {"size": 12, "color": "#ffffff"}, "title": "cli_entry()", "community": 1, "community_name": "Community 1", "source_file": "reddit_fetch/main.py", "file_type": "code", "degree": 8}, {"id": "main_main", "label": "main()", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 19.0, "font": {"size": 12, "color": "#ffffff"}, "title": "main()", "community": 1, "community_name": "Community 1", "source_file": "reddit_fetch/main.py", "file_type": "code", "degree": 3}, {"id": "main_rationale_20", "label": "Returns True if the script is running in an interactive terminal (TTY)", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Returns True if the script is running in an interactive terminal (TTY)", "community": 1, "community_name": "Community 1", "source_file": "reddit_fetch/main.py", "file_type": "rationale", "degree": 1}, {"id": "main_rationale_27", "label": "Check if authentication is available and show appropriate messages.", "color": {"background": "#E15759", "border": "#E15759", "highlight": {"background": "#ffffff", "border": "#E15759"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Check if authentication is available and show appropriate messages.", "community": 2, "community_name": "Community 2", "source_file": "reddit_fetch/main.py", "file_type": "rationale", "degree": 1}, {"id": "main_rationale_208", "label": "Main entry point for the CLI.", "color": {"background": "#F28E2B", "border": "#F28E2B", "highlight": {"background": "#ffffff", "border": "#F28E2B"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Main entry point for the CLI.", "community": 1, "community_name": "Community 1", "source_file": "reddit_fetch/main.py", "file_type": "rationale", "degree": 1}, {"id": "reddit_fetch_api_py", "label": "api.py", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 25.0, "font": {"size": 12, "color": "#ffffff"}, "title": "api.py", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "code", "degree": 5}, {"id": "api_get_valid_access_token", "label": "get_valid_access_token()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 25.0, "font": {"size": 12, "color": "#ffffff"}, "title": "get_valid_access_token()", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "code", "degree": 5}, {"id": "api_make_request", "label": "make_request()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 28.0, "font": {"size": 12, "color": "#ffffff"}, "title": "make_request()", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "code", "degree": 6}, {"id": "api_fetch_saved_posts", "label": "fetch_saved_posts()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 28.0, "font": {"size": 12, "color": "#ffffff"}, "title": "fetch_saved_posts()", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "code", "degree": 6}, {"id": "api_generate_html_output", "label": "generate_html_output()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 19.0, "font": {"size": 12, "color": "#ffffff"}, "title": "generate_html_output()", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "code", "degree": 3}, {"id": "api_fetch_saved_posts_legacy", "label": "fetch_saved_posts_legacy()", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 19.0, "font": {"size": 12, "color": "#ffffff"}, "title": "fetch_saved_posts_legacy()", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "code", "degree": 3}, {"id": "api_rationale_17", "label": "Gets a valid access token, refreshing if necessary.", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Gets a valid access token, refreshing if necessary.", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "rationale", "degree": 1}, {"id": "api_rationale_52", "label": "Makes an API request to Reddit, handling authentication and errors.", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Makes an API request to Reddit, handling authentication and errors.", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "rationale", "degree": 1}, {"id": "api_rationale_119", "label": "Fetch saved Reddit posts, using `after` for full fetch and `before` for incremen", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Fetch saved Reddit posts, using `after` for full fetch and `before` for incremen", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "rationale", "degree": 1}, {"id": "api_rationale_335", "label": "Generate HTML output from posts list.", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Generate HTML output from posts list.", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "rationale", "degree": 1}, {"id": "api_rationale_471", "label": "Legacy function that returns just the content for backward compatibility.", "color": {"background": "#4E79A7", "border": "#4E79A7", "highlight": {"background": "#ffffff", "border": "#4E79A7"}}, "size": 13.0, "font": {"size": 0, "color": "#ffffff"}, "title": "Legacy function that returns just the content for backward compatibility.", "community": 0, "community_name": "Community 0", "source_file": "reddit_fetch/api.py", "file_type": "rationale", "degree": 1}];
+const RAW_EDGES = [{"from": "reddit_fetch_auth_py", "to": "auth_is_headless", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_is_docker", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_show_headless_instructions", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_load_tokens_safe", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_save_tokens", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_refresh_access_token_safe", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_validate_credentials", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_get_new_tokens", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_authhandler", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_auth_py", "to": "auth_start_auth_server", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_is_headless", "to": "auth_refresh_access_token_safe", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_is_headless", "to": "auth_get_new_tokens", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_is_headless", "to": "auth_rationale_22", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_is_headless", "to": "main_check_authentication", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_is_headless", "to": "main_cli_entry", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_is_docker", "to": "auth_show_headless_instructions", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_is_docker", "to": "auth_rationale_76", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_is_docker", "to": "main_check_authentication", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_is_docker", "to": "main_cli_entry", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_show_headless_instructions", "to": "auth_refresh_access_token_safe", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_show_headless_instructions", "to": "auth_get_new_tokens", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_show_headless_instructions", "to": "auth_rationale_84", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_show_headless_instructions", "to": "main_check_authentication", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_show_headless_instructions", "to": "main_cli_entry", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_load_tokens_safe", "to": "auth_refresh_access_token_safe", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_load_tokens_safe", "to": "auth_rationale_138", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_load_tokens_safe", "to": "main_check_authentication", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_load_tokens_safe", "to": "api_get_valid_access_token", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_save_tokens", "to": "auth_refresh_access_token_safe", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_save_tokens", "to": "auth_get_new_tokens", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_save_tokens", "to": "auth_rationale_156", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_refresh_access_token_safe", "to": "auth_get_new_tokens", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_refresh_access_token_safe", "to": "auth_rationale_165", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_refresh_access_token_safe", "to": "api_get_valid_access_token", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_refresh_access_token_safe", "to": "api_make_request", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "auth_validate_credentials", "to": "auth_get_new_tokens", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_validate_credentials", "to": "auth_rationale_246", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_get_new_tokens", "to": "auth_rationale_283", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_authhandler", "to": "basehttprequesthandler", "label": "inherits", "title": "inherits [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_authhandler", "to": "auth_authhandler_do_get", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_authhandler", "to": "auth_authhandler_log_message", "label": "method", "title": "method [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "auth_start_auth_server", "to": "auth_rationale_392", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_config_py", "to": "config_exponential_backoff", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "config_exponential_backoff", "to": "config_rationale_17", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "config_exponential_backoff", "to": "api_make_request", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "reddit_fetch_init_py", "to": "reddit_fetch_main_py", "label": "imports_from", "title": "imports_from [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_main_py", "to": "main_is_interactive", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_main_py", "to": "main_check_authentication", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_main_py", "to": "main_cli_entry", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_main_py", "to": "main_main", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "main_is_interactive", "to": "main_cli_entry", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "main_is_interactive", "to": "main_rationale_20", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "main_check_authentication", "to": "main_cli_entry", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "main_check_authentication", "to": "main_rationale_27", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "main_cli_entry", "to": "main_main", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "main_cli_entry", "to": "api_fetch_saved_posts", "label": "calls", "title": "calls [INFERRED]", "dashes": true, "width": 1, "color": {"opacity": 0.35}, "confidence": "INFERRED"}, {"from": "main_main", "to": "main_rationale_208", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_api_py", "to": "api_get_valid_access_token", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_api_py", "to": "api_make_request", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_api_py", "to": "api_fetch_saved_posts", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_api_py", "to": "api_generate_html_output", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "reddit_fetch_api_py", "to": "api_fetch_saved_posts_legacy", "label": "contains", "title": "contains [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_get_valid_access_token", "to": "api_make_request", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_get_valid_access_token", "to": "api_rationale_17", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_make_request", "to": "api_fetch_saved_posts", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_make_request", "to": "api_rationale_52", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_fetch_saved_posts", "to": "api_generate_html_output", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_fetch_saved_posts", "to": "api_fetch_saved_posts_legacy", "label": "calls", "title": "calls [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_fetch_saved_posts", "to": "api_rationale_119", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_generate_html_output", "to": "api_rationale_335", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}, {"from": "api_fetch_saved_posts_legacy", "to": "api_rationale_471", "label": "rationale_for", "title": "rationale_for [EXTRACTED]", "dashes": false, "width": 2, "color": {"opacity": 0.7}, "confidence": "EXTRACTED"}];
+const LEGEND = [{"cid": 0, "color": "#4E79A7", "label": "Community 0", "count": 11}, {"cid": 1, "color": "#F28E2B", "label": "Community 1", "count": 7}, {"cid": 2, "color": "#E15759", "label": "Community 2", "count": 6}, {"cid": 3, "color": "#76B7B2", "label": "Community 3", "count": 4}, {"cid": 4, "color": "#59A14F", "label": "Community 4", "count": 4}, {"cid": 5, "color": "#EDC948", "label": "Community 5", "count": 4}, {"cid": 6, "color": "#B07AA1", "label": "Community 6", "count": 3}, {"cid": 7, "color": "#FF9DA7", "label": "Community 7", "count": 3}, {"cid": 8, "color": "#9C755F", "label": "Community 8", "count": 2}, {"cid": 9, "color": "#BAB0AC", "label": "Community 9", "count": 2}, {"cid": 10, "color": "#4E79A7", "label": "Community 10", "count": 1}];
+
+// HTML-escape helper — prevents XSS when injecting graph data into innerHTML
+function esc(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+}
+
+// Build vis datasets
+const nodesDS = new vis.DataSet(RAW_NODES.map(n => ({
+  id: n.id, label: n.label, color: n.color, size: n.size,
+  font: n.font, title: n.title,
+  _community: n.community, _community_name: n.community_name,
+  _source_file: n.source_file, _file_type: n.file_type, _degree: n.degree,
+})));
+
+const edgesDS = new vis.DataSet(RAW_EDGES.map((e, i) => ({
+  id: i, from: e.from, to: e.to,
+  label: '',
+  title: e.title,
+  dashes: e.dashes,
+  width: e.width,
+  color: e.color,
+  arrows: { to: { enabled: true, scaleFactor: 0.5 } },
+})));
+
+const container = document.getElementById('graph');
+const network = new vis.Network(container, { nodes: nodesDS, edges: edgesDS }, {
+  physics: {
+    enabled: true,
+    solver: 'forceAtlas2Based',
+    forceAtlas2Based: {
+      gravitationalConstant: -60,
+      centralGravity: 0.005,
+      springLength: 120,
+      springConstant: 0.08,
+      damping: 0.4,
+      avoidOverlap: 0.8,
+    },
+    stabilization: { iterations: 200, fit: true },
+  },
+  interaction: {
+    hover: true,
+    tooltipDelay: 100,
+    hideEdgesOnDrag: true,
+    navigationButtons: false,
+    keyboard: false,
+  },
+  nodes: { shape: 'dot', borderWidth: 1.5 },
+  edges: { smooth: { type: 'continuous', roundness: 0.2 }, selectionWidth: 3 },
+});
+
+network.once('stabilizationIterationsDone', () => {
+  network.setOptions({ physics: { enabled: false } });
+});
+
+function showInfo(nodeId) {
+  const n = nodesDS.get(nodeId);
+  if (!n) return;
+  const neighborIds = network.getConnectedNodes(nodeId);
+  const neighborItems = neighborIds.map(nid => {
+    const nb = nodesDS.get(nid);
+    const color = nb ? nb.color.background : '#555';
+    return `<span class="neighbor-link" style="border-left-color:${esc(color)}" onclick="focusNode(${JSON.stringify(nid)})">${esc(nb ? nb.label : nid)}</span>`;
+  }).join('');
+  document.getElementById('info-content').innerHTML = `
+    <div class="field"><b>${esc(n.label)}</b></div>
+    <div class="field">Type: ${esc(n._file_type || 'unknown')}</div>
+    <div class="field">Community: ${esc(n._community_name)}</div>
+    <div class="field">Source: ${esc(n._source_file || '-')}</div>
+    <div class="field">Degree: ${n._degree}</div>
+    ${neighborIds.length ? `<div class="field" style="margin-top:8px;color:#aaa;font-size:11px">Neighbors (${neighborIds.length})</div><div id="neighbors-list">${neighborItems}</div>` : ''}
+  `;
+}
+
+function focusNode(nodeId) {
+  network.focus(nodeId, { scale: 1.4, animation: true });
+  network.selectNodes([nodeId]);
+  showInfo(nodeId);
+}
+
+// Track hovered node — hover detection is more reliable than click params
+let hoveredNodeId = null;
+network.on('hoverNode', params => {
+  hoveredNodeId = params.node;
+  container.style.cursor = 'pointer';
+});
+network.on('blurNode', () => {
+  hoveredNodeId = null;
+  container.style.cursor = 'default';
+});
+container.addEventListener('click', () => {
+  if (hoveredNodeId !== null) {
+    showInfo(hoveredNodeId);
+    network.selectNodes([hoveredNodeId]);
+  }
+});
+network.on('click', params => {
+  if (params.nodes.length > 0) {
+    showInfo(params.nodes[0]);
+  } else if (hoveredNodeId === null) {
+    document.getElementById('info-content').innerHTML = '<span class="empty">Click a node to inspect it</span>';
+  }
+});
+
+const searchInput = document.getElementById('search');
+const searchResults = document.getElementById('search-results');
+searchInput.addEventListener('input', () => {
+  const q = searchInput.value.toLowerCase().trim();
+  searchResults.innerHTML = '';
+  if (!q) { searchResults.style.display = 'none'; return; }
+  const matches = RAW_NODES.filter(n => n.label.toLowerCase().includes(q)).slice(0, 20);
+  if (!matches.length) { searchResults.style.display = 'none'; return; }
+  searchResults.style.display = 'block';
+  matches.forEach(n => {
+    const el = document.createElement('div');
+    el.className = 'search-item';
+    el.textContent = n.label;
+    el.style.borderLeft = `3px solid ${n.color.background}`;
+    el.style.paddingLeft = '8px';
+    el.onclick = () => {
+      network.focus(n.id, { scale: 1.5, animation: true });
+      network.selectNodes([n.id]);
+      showInfo(n.id);
+      searchResults.style.display = 'none';
+      searchInput.value = '';
+    };
+    searchResults.appendChild(el);
+  });
+});
+document.addEventListener('click', e => {
+  if (!searchResults.contains(e.target) && e.target !== searchInput)
+    searchResults.style.display = 'none';
+});
+
+const hiddenCommunities = new Set();
+const legendEl = document.getElementById('legend');
+LEGEND.forEach(c => {
+  const item = document.createElement('div');
+  item.className = 'legend-item';
+  item.innerHTML = `<div class="legend-dot" style="background:${c.color}"></div>
+    <span class="legend-label">${c.label}</span>
+    <span class="legend-count">${c.count}</span>`;
+  item.onclick = () => {
+    if (hiddenCommunities.has(c.cid)) {
+      hiddenCommunities.delete(c.cid);
+      item.classList.remove('dimmed');
+    } else {
+      hiddenCommunities.add(c.cid);
+      item.classList.add('dimmed');
+    }
+    const updates = RAW_NODES
+      .filter(n => n.community === c.cid)
+      .map(n => ({ id: n.id, hidden: hiddenCommunities.has(c.cid) }));
+    nodesDS.update(updates);
+  };
+  legendEl.appendChild(item);
+});
+</script>
+<script>
+// Render hyperedges as shaded regions
+const hyperedges = [];
+// afterDrawing passes ctx already transformed to network coordinate space.
+// Draw node positions raw — no manual pan/zoom/DPR math needed.
+network.on('afterDrawing', function(ctx) {
+    hyperedges.forEach(h => {
+        const positions = h.nodes
+            .map(nid => network.getPositions([nid])[nid])
+            .filter(p => p !== undefined);
+        if (positions.length < 2) return;
+        ctx.save();
+        ctx.globalAlpha = 0.12;
+        ctx.fillStyle = '#6366f1';
+        ctx.strokeStyle = '#6366f1';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        // Centroid and expanded hull in network coordinates
+        const cx = positions.reduce((s, p) => s + p.x, 0) / positions.length;
+        const cy = positions.reduce((s, p) => s + p.y, 0) / positions.length;
+        const expanded = positions.map(p => ({
+            x: cx + (p.x - cx) * 1.15,
+            y: cy + (p.y - cy) * 1.15
+        }));
+        ctx.moveTo(expanded[0].x, expanded[0].y);
+        expanded.slice(1).forEach(p => ctx.lineTo(p.x, p.y));
+        ctx.closePath();
+        ctx.fill();
+        ctx.globalAlpha = 0.4;
+        ctx.stroke();
+        // Label
+        ctx.globalAlpha = 0.8;
+        ctx.fillStyle = '#4f46e5';
+        ctx.font = 'bold 11px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(h.label, cx, cy - 5);
+        ctx.restore();
+    });
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,48 @@
+#!/bin/sh
+
+branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
+
+if [ -n "$branch" ]; then
+  for remote in origin gitea; do
+    if git remote get-url "$remote" >/dev/null 2>&1; then
+      echo "[post-commit] Pushing $branch to $remote"
+      git push "$remote" "$branch" || echo "[post-commit] Push to $remote failed"
+    fi
+  done
+else
+  echo "[post-commit] Skipping push: detached HEAD"
+fi
+
+repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)
+if [ -z "$repo_root" ]; then
+  exit 0
+fi
+
+changed_code=$(
+  git diff-tree --no-commit-id --name-only -r HEAD |
+    grep -E '^(reddit_fetch|tests|scripts|docs|setup.py|requirements.*|Dockerfile|AGENTS.md|CLAUDE.md|\.claude/)' ||
+    true
+)
+
+if [ -z "$changed_code" ]; then
+  exit 0
+fi
+
+commit_sha=$(git rev-parse --short HEAD 2>/dev/null || true)
+lock_file="$repo_root/.git/gitnexus-analyze.lock"
+
+run_gitnexus() {
+  cd "$repo_root" || exit 0
+  echo "[gitnexus] Re-indexing $commit_sha"
+  npx gitnexus analyze --skip-agents-md ||
+    echo "[gitnexus] Re-index failed; run 'npx gitnexus analyze --skip-agents-md' manually"
+}
+
+if command -v flock >/dev/null 2>&1; then
+  (
+    flock -n 9 || exit 0
+    run_gitnexus
+  ) 9>"$lock_file"
+else
+  run_gitnexus
+fi
