@@ -2,15 +2,19 @@
 
 branch=$(git symbolic-ref --quiet --short HEAD 2>/dev/null || true)
 
-if [ -n "$branch" ]; then
+
+if [ -z "$branch" ]; then
+  echo "[post-commit] Skipping push: detached HEAD"
+elif [ "$branch" != "main" ] && [ "$branch" != "master" ]; then
+  # Local branches/worktrees are fine; only main is ever published.
+  echo "[post-commit] Skipping push: '$branch' is not main (merge into main to publish)"
+else
   for remote in origin gitea; do
     if git remote get-url "$remote" >/dev/null 2>&1; then
       echo "[post-commit] Pushing $branch to $remote"
       git push "$remote" "$branch" || echo "[post-commit] Push to $remote failed"
     fi
   done
-else
-  echo "[post-commit] Skipping push: detached HEAD"
 fi
 
 repo_root=$(git rev-parse --show-toplevel 2>/dev/null || true)

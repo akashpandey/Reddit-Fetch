@@ -15,7 +15,7 @@ fi
 
 mkdir -p "$hooks_dir"
 
-for hook in pre-commit post-commit; do
+for hook in post-commit pre-push; do
   source_hook="$repo_root/scripts/hooks/$hook"
   target_hook="$hooks_dir/$hook"
 

@@ -9,8 +9,8 @@ test.py
 docker-compose.yml
 .env
 
-# Graphify generated scratch files
-graphify-out/cache/
+# Generated output of a removed tool (kept ignored for old checkouts)
+graphify-out/
 
 # LLM / AI tooling
 .claude/

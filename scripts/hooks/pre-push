@@ -1,0 +1,16 @@
+#!/bin/sh
+# Only main/master (and tags) may be published; local branches stay local.
+# Deleting a remote branch is allowed.
+zero=0000000000000000000000000000000000000000
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  [ "$local_sha" = "$zero" ] && continue
+  case "$remote_ref" in
+    refs/heads/main | refs/heads/master | refs/tags/*) ;;
+    *)
+      echo "[pre-push] Refusing to push $remote_ref: only main is published. Merge into main locally first." >&2
+      exit 1
+      ;;
+  esac
+done
+exit 0
